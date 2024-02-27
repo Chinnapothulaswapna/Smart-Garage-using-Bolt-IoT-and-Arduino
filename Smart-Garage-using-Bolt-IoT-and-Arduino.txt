@@ -1,0 +1,53 @@
+#include <BoltIoT-Arduino-Helper.h>
+
+// Replace 'YOUR_API_KEY' and 'YOUR_DEVICE_ID' with your Bolt Cloud API Key and Device ID
+char apiKey[] = "YOUR_API_KEY";
+char deviceID[] = "YOUR_DEVICE_ID";
+
+const int doorPin = 2;  // Digital pin to control the garage door
+int doorState = 0;     // 0: Closed, 1: Opened
+
+void setup() {
+  boltiot.begin(Serial);
+  pinMode(doorPin, OUTPUT);
+  digitalWrite(doorPin, LOW);
+}
+
+void loop() {
+  checkGarageDoorStatus();
+  checkAndControlGarageDoor();
+}
+
+void checkGarageDoorStatus() {
+  int sensorValue = digitalRead(doorPin);
+  if (sensorValue == HIGH) {
+    boltiot.sendCommand("notify", "Garage Door Opened");
+    doorState = 1;
+  } else {
+    doorState = 0;
+  }
+}
+
+void checkAndControlGarageDoor() {
+  if (boltiot.isCommandReceived("open")) {
+    openGarageDoor();
+  } else if (boltiot.isCommandReceived("close")) {
+    closeGarageDoor();
+  }
+}
+
+void openGarageDoor() {
+  digitalWrite(doorPin, HIGH);
+  delay(500);  // Add delay for door movement
+  digitalWrite(doorPin, LOW);
+  boltiot.sendCommand("notify", "Garage Door Opened");
+  doorState = 1;
+}
+
+void closeGarageDoor() {
+  digitalWrite(doorPin, HIGH);
+  delay(500);  // Add delay for door movement
+  digitalWrite(doorPin, LOW);
+  boltiot.sendCommand("notify", "Garage Door Closed");
+  doorState = 0;
+}
