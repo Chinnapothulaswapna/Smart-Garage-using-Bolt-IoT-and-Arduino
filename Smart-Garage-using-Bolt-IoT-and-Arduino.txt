@@ -1,53 +1,81 @@
+#include <Servo.h>
 #include <BoltIoT-Arduino-Helper.h>
 
-// Replace 'YOUR_API_KEY' and 'YOUR_DEVICE_ID' with your Bolt Cloud API Key and Device ID
-char apiKey[] = "YOUR_API_KEY";
-char deviceID[] = "YOUR_DEVICE_ID";
+// Replace with your Bolt device credentials
+char device_api_key[] = "Your_Device_API_Key";
+char device_id[] = "Your_Device_ID";
 
-const int doorPin = 2;  // Digital pin to control the garage door
-int doorState = 0;     // 0: Closed, 1: Opened
+// Pin configuration
+#define BUTTON_PIN 2  // Pin for manual control button
+#define SERVO_PIN 9   // Pin for the servo motor
+
+Servo garageDoorServo;
+
+bool isDoorOpen = false;
 
 void setup() {
-  boltiot.begin(Serial);
-  pinMode(doorPin, OUTPUT);
-  digitalWrite(doorPin, LOW);
+  Serial.begin(115200);
+
+  // Initialize Bolt IoT
+  boltiot.begin(device_api_key, device_id, Serial);
+  setupBoltIoTCallbacks();
+
+  // Setup servo motor
+  garageDoorServo.attach(SERVO_PIN);
+
+  // Setup button pin
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  // Initial door state
+  closeDoor();
 }
 
 void loop() {
-  checkGarageDoorStatus();
-  checkAndControlGarageDoor();
+  boltiot.handleCommand();
+  checkButton();
+
+  // Additional code for other functionalities like laser, voice commands, and notifications
 }
 
-void checkGarageDoorStatus() {
-  int sensorValue = digitalRead(doorPin);
-  if (sensorValue == HIGH) {
-    boltiot.sendCommand("notify", "Garage Door Opened");
-    doorState = 1;
-  } else {
-    doorState = 0;
+void openDoor() {
+  garageDoorServo.write(0);  // Adjust the servo position for your setup
+  isDoorOpen = true;
+}
+
+void closeDoor() {
+  garageDoorServo.write(90);  // Adjust the servo position for your setup
+  isDoorOpen = false;
+}
+
+void checkButton() {
+  int buttonState = digitalRead(BUTTON_PIN);
+
+  if (buttonState == LOW) {
+    if (isDoorOpen) {
+      closeDoor();
+      boltiot.digitalWrite("0", "LOW");  // Send status to Bolt Cloud
+    } else {
+      openDoor();
+      boltiot.digitalWrite("0", "HIGH");  // Send status to Bolt Cloud
+    }
+    delay(1000);  // Debounce
   }
 }
 
-void checkAndControlGarageDoor() {
-  if (boltiot.isCommandReceived("open")) {
-    openGarageDoor();
-  } else if (boltiot.isCommandReceived("close")) {
-    closeGarageDoor();
+void BoltIoTEventCallback(BoltIoTEventCode event) {
+  if (event == BoltIoTEventCode::DeviceConnected) {
+    Serial.println("Connected to Bolt Cloud");
+  } else if (event == BoltIoTEventCode::DeviceDisconnected) {
+    Serial.println("Disconnected from Bolt Cloud");
   }
 }
 
-void openGarageDoor() {
-  digitalWrite(doorPin, HIGH);
-  delay(500);  // Add delay for door movement
-  digitalWrite(doorPin, LOW);
-  boltiot.sendCommand("notify", "Garage Door Opened");
-  doorState = 1;
+void BoltIoTCommandCallback(String command, String value) {
+  // Handle Bolt Cloud commands if needed
 }
 
-void closeGarageDoor() {
-  digitalWrite(doorPin, HIGH);
-  delay(500);  // Add delay for door movement
-  digitalWrite(doorPin, LOW);
-  boltiot.sendCommand("notify", "Garage Door Closed");
-  doorState = 0;
+void setupBoltIoTCallbacks() {
+  boltiot.setEventHandler(BoltIoTEventCallback);
+  boltiot.setCommandHandler(BoltIoTCommandCallback);
 }
+
